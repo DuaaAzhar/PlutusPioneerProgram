@@ -37,7 +37,7 @@ mkPolicy :: PaymentPubKeyHash -> () -> ScriptContext -> Bool
 mkPolicy pkh () ctx = txSignedBy (scriptContextTxInfo ctx) $ unPaymentPubKeyHash pkh
 
 policy :: PaymentPubKeyHash -> Scripts.MintingPolicy
-policy pkh = mkMintingPolicyScript $
+policy pkh = mkMintingPolicyScript $                                 --mkMintingPolicyScript :: CompiledCode (BuiltinData -> BuiltinData -> ()) -> MintingPolicy
     $$(PlutusTx.compile [|| Scripts.wrapMintingPolicy . mkPolicy ||])
     `PlutusTx.applyCode`
     PlutusTx.liftCode pkh

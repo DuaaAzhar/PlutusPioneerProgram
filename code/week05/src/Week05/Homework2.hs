@@ -28,22 +28,51 @@ import           Prelude                (IO, Semigroup (..), Show (..), String, 
 import           Text.Printf            (printf)
 import           Wallet.Emulator.Wallet
 
+tn :: TokenName
+tn = TokenName emptyByteString
+
 {-# INLINABLE mkPolicy #-}
 -- Minting policy for an NFT, where the minting transaction must consume the given UTxO as input
 -- and where the TokenName will be the empty ByteString.
 mkPolicy :: TxOutRef -> () -> ScriptContext -> Bool
-mkPolicy oref () ctx = True -- FIX ME!
+mkPolicy oref () ctx = traceIfFalse "UTXO not consumed" hasUTXO &&
+                       traceIfFalse "wrong amount minted" checkMintedAmount
+  where
+    info :: TxInfo
+    info = scriptContextTxInfo ctx
+    
+    hasUTXO :: Bool
+    hasUTXO = any (\i -> txInInfoOutRef i==oref) $ txInfoInputs info
+    
+    checkMintedAmount :: Bool
+    checkMintedAmount = case flattenValue (txInfoMint info) of
+            [(cs, tn' , amt)] -> cs == ownCurrencySymbol ctx && tn'== tn && amt ==1
+            _                -> False
 
 policy :: TxOutRef -> Scripts.MintingPolicy
-policy oref = undefined -- IMPLEMENT ME!
+policy oref = mkMintingPolicyScript $
+           $$(PlutusTx.compile [||\oref'-> Scripts.wrapMintingPolicy $ mkPolicy oref' ||])
+           `PlutusTx.applyCode` PlutusTx.liftCode oref
+           
 
 curSymbol :: TxOutRef -> CurrencySymbol
-curSymbol = undefined -- IMPLEMENT ME!
+curSymbol oref =  scriptCurrencySymbol $ policy oref
 
 type NFTSchema = Endpoint "mint" Address
 
 mint :: Address -> Contract w NFTSchema Text ()
-mint _ = undefined -- IMPLEMENT ME!
+mint na = do
+     utxos <- utxosAt na
+     case Map.keys utxos of
+         []       -> Contract.logError @String "No UTXO FOound" 
+         oref : _ -> do
+            let val    = Value.singleton (curSymbol oref) tn 1 
+                lookups= Constraints.mintingPolicy (policy oref) <> Constraints.unspentOutputs utxos
+                tx     = Constraints.mustMintValue val <> Constraints.mustSpendPubKeyOutput oref
+            ledgerTx <- submitTxConstraintsWith @Void lookups tx
+            void $ awaitTxConfirmed $ getCardanoTxId ledgerTx
+            --Contract.logInfo @String $ printf "%forged %s" (show val)
+            Contract.logInfo @String "Forged value here ..."
 
 endpoints :: Contract () NFTSchema Text ()
 endpoints = mint' >> endpoints

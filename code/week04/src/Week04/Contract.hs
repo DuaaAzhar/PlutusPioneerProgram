@@ -33,7 +33,7 @@ myContract2 = Contract.handleError
     myContract1
 
 myTrace2 :: EmulatorTrace ()
-myTrace2 = void $ activateContractWallet (knownWallet 1) myContract2
+myTrace2 = void $ activateContractWallet (	knownWallet 1) myContract2
 
 test2 :: IO ()
 test2 = runEmulatorTraceIO myTrace2

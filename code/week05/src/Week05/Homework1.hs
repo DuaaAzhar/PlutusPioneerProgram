@@ -39,13 +39,26 @@ import           Wallet.Emulator.Wallet
 -- This policy should only allow minting (or burning) of tokens if the owner of the specified PaymentPubKeyHash
 -- has signed the transaction and if the specified deadline has not passed.
 mkPolicy :: PaymentPubKeyHash -> POSIXTime -> () -> ScriptContext -> Bool
-mkPolicy pkh deadline () ctx = True -- FIX ME!
+mkPolicy pkh deadline () ctx = traceIfFalse "Not Signed By Owner" signedByOwner &&
+                               traceIfFalse "Deadline has Passed" beforeDeadline
+   where
+      info :: TxInfo
+      info = scriptContextTxInfo ctx
+      signedByOwner :: Bool
+      signedByOwner = txSignedBy info $ unPaymentPubKeyHash pkh
+      
+      beforeDeadline :: Bool
+      beforeDeadline = contains (txInfoValidRange info) (to deadline )  -- checks 2nd interval is in first interval or not
 
 policy :: PaymentPubKeyHash -> POSIXTime -> Scripts.MintingPolicy
-policy pkh deadline = undefined -- IMPLEMENT ME!
+policy pkh deadline = mkMintingPolicyScript $
+       $$(PlutusTx.compile [||\pkh' deadline' -> Scripts.wrapMintingPolicy $ mkPolicy pkh' deadline' ||])
+       `PlutusTx.applyCode` PlutusTx.liftCode pkh
+       `PlutusTx.applyCode` PlutusTx.liftCode deadline
+        
 
 curSymbol :: PaymentPubKeyHash -> POSIXTime -> CurrencySymbol
-curSymbol pkh deadline = undefined -- IMPLEMENT ME!
+curSymbol pkh deadline = scriptCurrencySymbol $ policy pkh deadline
 
 data MintParams = MintParams
     { mpTokenName :: !TokenName
@@ -82,14 +95,14 @@ mkKnownCurrencies []
 test :: IO ()
 test = runEmulatorTraceIO $ do
     let tn       = "ABC"
-        deadline = slotToBeginPOSIXTime def 100
+        deadline = slotToBeginPOSIXTime def 10
     h <- activateContractWallet (knownWallet 1) endpoints
     callEndpoint @"mint" h $ MintParams
         { mpTokenName = tn
         , mpDeadline  = deadline
         , mpAmount    = 555
         }
-    void $ Emulator.waitNSlots 110
+    void $ Emulator.waitNSlots 11
     callEndpoint @"mint" h $ MintParams
         { mpTokenName = tn
         , mpDeadline  = deadline

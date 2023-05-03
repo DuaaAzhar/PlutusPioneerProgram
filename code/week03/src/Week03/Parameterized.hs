@@ -101,13 +101,13 @@ give gp = do
         (gpAmount gp)
         (show $ gpBeneficiary gp)
         (show $ gpDeadline gp)
-
+	
 grab :: forall w s e. AsContractError e => POSIXTime -> Contract w s e ()
 grab d = do
     now   <- currentTime
     pkh   <- ownPaymentPubKeyHash
     if now < d
-        then logInfo @String $ "too early"
+        then logInfo @String $"too early"
         else do
             let p = VestingParam
                         { beneficiary = pkh

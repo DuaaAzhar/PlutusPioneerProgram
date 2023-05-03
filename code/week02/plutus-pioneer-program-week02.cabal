@@ -23,6 +23,7 @@ library
                      , base ^>=4.14.1.0
                      , containers
                      , playground-common
+                     , plutus-ledger-api
                      , plutus-contract
                      , plutus-ledger
                      , plutus-ledger-constraints
